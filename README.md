@@ -9,6 +9,8 @@ again within 180 days? Features come from Project A's governed dbt marts
 (train/serve parity by construction), retraining runs weekly behind a CI
 quality gate that refuses to ship a regressed model.
 
+![Live what-if scoring with SHAP explanations](docs/churn-app.png)
+
 ## 1. Business Problem
 
 Churn on a marketplace with a ~3% repeat rate isn't "who will leave" (almost
