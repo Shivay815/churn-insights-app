@@ -28,7 +28,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import OneHotEncoder
 
@@ -113,33 +113,37 @@ def recall_at_decile(y_true: np.ndarray, scores: np.ndarray) -> float:
 
 def main() -> None:
     started = time.perf_counter()
-    df = pd.read_parquet(FEATURES)
+    # sort_values: belt-and-braces reproducibility on top of the SQL ORDER BY
+    df = pd.read_parquet(FEATURES).sort_values("customer_unique_id").reset_index(drop=True)
     df["is_late_delivery"] = df.is_late_delivery.astype(int)
     y = df.repeated_within_window.astype(int)
 
-    train_df, test_df, y_train, y_test = train_test_split(
-        df, y, test_size=0.2, stratify=y, random_state=SEED
-    )
+    # The sentiment sub-model is supervised by REVIEW STARS, not the repeat
+    # label, so fitting it on the full population leaks nothing about the
+    # target into the CV evaluation below.
+    sentiment = train_sentiment(df)
+    df = add_sentiment(df, sentiment)
 
-    sentiment = train_sentiment(train_df)
-    train_df = add_sentiment(train_df, sentiment)
-    test_df = add_sentiment(test_df, sentiment)
-
-    pipe = build_pipeline()
-    pipe.fit(train_df[MODEL_FEATURES], y_train)
-    scores = pipe.predict_proba(test_df[MODEL_FEATURES])[:, 1]
+    # Out-of-fold evaluation: every customer is scored by a model that never
+    # saw them. One honest number instead of a single lucky/unlucky split —
+    # the original single-split design swung ±0.03 AUC purely on row order,
+    # which the quality gate (correctly) refused.
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+    oof_scores = cross_val_predict(
+        build_pipeline(), df[MODEL_FEATURES], y, cv=cv, method="predict_proba"
+    )[:, 1]
 
     metrics = {
-        "roc_auc": round(float(roc_auc_score(y_test, scores)), 4),
-        "pr_auc": round(float(average_precision_score(y_test, scores)), 4),
-        "recall_at_top_decile": round(recall_at_decile(y_test.values, scores), 4),
+        "roc_auc": round(float(roc_auc_score(y, oof_scores)), 4),
+        "pr_auc": round(float(average_precision_score(y, oof_scores)), 4),
+        "recall_at_top_decile": round(recall_at_decile(y.values, oof_scores), 4),
         "lift_at_top_decile": round(
-            recall_at_decile(y_test.values, scores) / 0.10, 2
+            recall_at_decile(y.values, oof_scores) / 0.10, 2
         ),
-        "brier": round(float(brier_score_loss(y_test, scores)), 5),
+        "brier": round(float(brier_score_loss(y, oof_scores)), 5),
         "base_rate": round(float(y.mean()), 4),
-        "n_train": int(len(train_df)),
-        "n_test": int(len(test_df)),
+        "evaluation": "5-fold stratified out-of-fold",
+        "n_customers": int(len(df)),
         "train_seconds": None,  # filled below
     }
 
@@ -155,6 +159,10 @@ def main() -> None:
             )
         print(f"✓ gate passed: {metrics['roc_auc']} vs incumbent {incumbent['roc_auc']}")
 
+    # ── Final model: fit on ALL data (evaluation already done via OOF) ──
+    pipe = build_pipeline()
+    pipe.fit(df[MODEL_FEATURES], y)
+
     # ── Artifacts ───────────────────────────────────────────────────
     ARTIFACTS.mkdir(exist_ok=True)
     metrics["train_seconds"] = round(time.perf_counter() - started, 1)
@@ -163,7 +171,7 @@ def main() -> None:
     metrics_path.write_text(json.dumps(metrics, indent=2))
 
     perm = permutation_importance(
-        pipe, test_df[MODEL_FEATURES], y_test, scoring="roc_auc",
+        pipe, df[MODEL_FEATURES], y, scoring="roc_auc",
         n_repeats=5, random_state=SEED,
     )
     importances = sorted(
@@ -174,12 +182,13 @@ def main() -> None:
         json.dumps(dict(importances), indent=2)
     )
 
-    # Scored holdout sample for the app's ranking table (no raw text kept).
-    sample = test_df[MODEL_FEATURES + ["customer_unique_id"]].copy()
+    # Scored sample for the app's ranking table: out-of-fold scores, so every
+    # row was scored by a model that never trained on it (no raw text kept).
+    sample = df[MODEL_FEATURES + ["customer_unique_id"]].copy()
     sample["customer_unique_id"] = sample.customer_unique_id.str[:8] + "…"
-    sample["propensity"] = scores.round(4)
-    sample["actual_repeat"] = y_test.values
-    sample.drop(columns=[]).nlargest(500, "propensity").to_parquet(
+    sample["propensity"] = oof_scores.round(4)
+    sample["actual_repeat"] = y.values
+    sample.nlargest(500, "propensity").to_parquet(
         ARTIFACTS / "scored_holdout.parquet"
     )
 

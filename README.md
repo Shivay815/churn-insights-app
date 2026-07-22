@@ -16,16 +16,16 @@ everyone does) — it's **"which rare repeaters can retention spend actually
 reach?"** Ranking first-time buyers by repeat propensity turns a blanket
 win-back campaign into a targeted one.
 
-## 2. Honest Model Card (measured on 11,182-customer holdout)
+## 2. Honest Model Card (5-fold out-of-fold over all 55,907 customers)
 
 | Metric | Value | Reading |
 |---|---|---|
-| ROC-AUC | **0.587** | Modest signal — first-order attributes genuinely carry limited information about repeat behavior on Olist. Reported as measured. |
-| Lift @ top decile | **1.69×** | Targeting the top-scored 10% reaches 1.69× the repeaters random targeting would. |
-| Recall @ top decile | **16.9%** | of all future repeaters appear in the top decile. |
+| ROC-AUC | **0.566** | Modest signal — first-order attributes genuinely carry limited information about repeat behavior on Olist. Reported as measured. |
+| Lift @ top decile | **1.70×** | Targeting the top-scored 10% reaches 1.70× the repeaters random targeting would. |
+| Recall @ top decile | **17.1%** | of all future repeaters appear in the top decile. |
 | Brier score | **0.027** | Well-calibrated probabilities (a deliberate trade-off — see below). |
 | Base rate | 2.80% | 1,566 repeaters of 55,907 first-time buyers. |
-| Train time | 1.3s | Full retrain is cheap; weekly cadence costs nothing. |
+| Train time | 3.3s (incl. 5-fold eval) | Full retrain is cheap; weekly cadence costs nothing. |
 
 **What I'd tell a stakeholder:** this model makes a top-decile campaign ~70%
 more efficient than spray-and-pray. It will not "identify churners with 85%
@@ -50,10 +50,10 @@ flowchart LR
 | Decision | Alternative | Why this |
 |---|---|---|
 | Censoring-aware label (exclude customers with <180 observable days) | Label everyone | Customers near the dataset edge haven't had time to repeat; labeling them 0 teaches the model that recent = churned. Classic leakage-adjacent bug, excluded by construction. |
-| Unweighted shallow HGB | `class_weight="balanced"` | Measured: balancing wrecked calibration (Brier 0.235 vs 0.027) *and* cost AUC (0.565 vs 0.587). Ranking quality survives without weights, and the app can display honest probabilities. |
+| Unweighted shallow HGB | `class_weight="balanced"` | Measured: balancing wrecked calibration (Brier 0.235 vs 0.027) *and* cost AUC (measured under the earlier split design). Ranking quality survives without weights, and the app can display honest probabilities. |
 | Sentiment as a distilled feature (TF-IDF+LR sub-model → one number) | Raw TF-IDF into the main model | Keeps the main model dense/SHAP-friendly and the app's inputs human-editable; the sub-model is self-supervised from star ratings, no manual labeling. |
 | Features from Project A's marts | Separate feature pipeline | Train/serve parity by construction — the dashboard and the model read the same tested tables; no drift between "analytics revenue" and "model revenue". |
-| Gate on ROC-AUC with 0.005 tolerance | Ship every retrain | A weekly retrain on drifted or corrupted data fails CI instead of silently degrading the app. |
+| Gate on ROC-AUC with 0.005 tolerance | Ship every retrain | A weekly retrain on drifted or corrupted data fails CI instead of silently degrading the app. The gate has already fired once for real: it caught a ±0.03 AUC irreproducibility bug (nondeterministic feature row order changing CV splits), which forced the switch to deterministic ordering + out-of-fold evaluation. |
 
 ## 5. Run It Yourself
 

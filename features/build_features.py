@@ -93,6 +93,9 @@ left join repeats on f.order_id = repeats.first_order_id
 left join reviews on f.order_id = reviews.order_id
 -- censoring guard: only customers with a full observation window
 where f.purchased_at <= max_date.dataset_end - interval {LABEL_WINDOW_DAYS} days
+-- deterministic output order: parallel scans otherwise shuffle rows between
+-- machines, which changes CV splits and makes metrics irreproducible
+order by f.customer_unique_id
 """
 
 if __name__ == "__main__":
