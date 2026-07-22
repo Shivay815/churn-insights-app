@@ -1,0 +1,7 @@
+duckdb>=1.1
+pandas>=2.2
+pyarrow>=17.0
+scikit-learn==1.7.*
+joblib>=1.4
+shap>=0.46
+pytest>=8.0

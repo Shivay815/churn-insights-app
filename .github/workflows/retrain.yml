@@ -1,0 +1,52 @@
+name: retrain
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1" # weekly retrain, Monday 03:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  train-and-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Olist raw data
+        uses: actions/cache@v4
+        with:
+          path: ../ecom-analytics-platform/data/raw
+          key: olist-raw-v1
+
+      - name: Build feature source (Project A warehouse)
+        run: make data
+
+      - name: Build features
+        run: make features
+
+      - name: Unit + contract tests
+        run: make test
+
+      - name: Train + evaluate + QUALITY GATE
+        run: make train # exits non-zero if the new model regresses vs incumbent
+
+      - name: Commit refreshed artifacts (scheduled runs only)
+        if: github.event_name == 'schedule'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add artifacts/
+          git diff --cached --quiet || git commit -m "chore: weekly retrain artifacts [skip ci]"
+          git push

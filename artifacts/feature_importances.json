@@ -1,0 +1,15 @@
+{
+  "first_order_value": 0.05395,
+  "installments": 0.03007,
+  "purchase_month": 0.01344,
+  "item_count": 0.01165,
+  "customer_state": 0.00956,
+  "payment_type": 0.00506,
+  "delivery_days": -0.00413,
+  "distinct_products": 0.00376,
+  "review_sentiment": 0.00171,
+  "freight_value": 0.0013,
+  "review_score": -0.00024,
+  "purchase_dow": -0.00015,
+  "is_late_delivery": 0.0
+}
