@@ -1,11 +1,11 @@
 {
-  "roc_auc": 0.5655,
+  "roc_auc": 0.5653,
   "pr_auc": 0.0389,
-  "recall_at_top_decile": 0.1705,
-  "lift_at_top_decile": 1.7,
-  "brier": 0.02716,
+  "recall_at_top_decile": 0.1609,
+  "lift_at_top_decile": 1.61,
+  "brier": 0.02717,
   "base_rate": 0.028,
   "evaluation": "5-fold stratified out-of-fold",
   "n_customers": 55907,
-  "train_seconds": 3.3
+  "train_seconds": 3.9
 }
