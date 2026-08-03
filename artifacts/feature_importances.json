@@ -1,15 +1,15 @@
 {
-  "first_order_value": 0.04714,
-  "installments": 0.03618,
-  "item_count": 0.01249,
-  "delivery_days": 0.00986,
-  "purchase_month": 0.00888,
-  "distinct_products": 0.00673,
-  "payment_type": 0.00449,
-  "freight_value": 0.00401,
-  "review_sentiment": 0.00378,
-  "purchase_dow": 0.00228,
-  "customer_state": 0.00165,
-  "is_late_delivery": 0.0,
-  "review_score": 0.0
+  "first_order_value": 0.05998,
+  "installments": 0.0455,
+  "delivery_days": 0.01852,
+  "purchase_month": 0.01444,
+  "payment_type": 0.00983,
+  "item_count": 0.00972,
+  "distinct_products": 0.0073,
+  "freight_value": 0.00662,
+  "customer_state": 0.00642,
+  "review_sentiment": 0.00494,
+  "purchase_dow": 0.00367,
+  "review_score": 0.0035,
+  "is_late_delivery": 0.0
 }
